@@ -22,8 +22,8 @@ export class HandTracker {
     try {
       console.log('正在加载 MediaPipe 脚本...');
       
-      // 按顺序加载依赖脚本
-      await this.loadScript('/mediapipe/hands/hands.js');
+      // 按顺序加载依赖脚本（使用相对路径）
+      await this.loadScript('./mediapipe/hands/hands.js');
       console.log('✓ hands.js 加载完成');
       
       // 等待 Hands 类可用
@@ -42,7 +42,7 @@ export class HandTracker {
       this.hands = new window.Hands({
         locateFile: (file) => {
           console.log('加载模型文件:', file);
-          return `/mediapipe/hands/${file}`;
+          return `./mediapipe/hands/${file}`;
         }
       });
 
