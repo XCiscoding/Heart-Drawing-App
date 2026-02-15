@@ -66,11 +66,18 @@ class HolographicHeartApp {
       this.updateLoadingText('正在加载模型...');
 
       // 初始化手势控制器
-      this.gestureController = new GestureController((scale) => {
-        if (this.heart3D) {
-          this.heart3D.setScale(scale);
+      this.gestureController = new GestureController(
+        (scale) => {
+          if (this.heart3D) {
+            this.heart3D.setScale(scale);
+          }
+        },
+        (rotX, rotY) => {
+          if (this.heart3D) {
+            this.heart3D.setRotation(rotX, rotY);
+          }
         }
-      });
+      );
 
       // 初始化科技特效
       this.techEffects = new TechEffects(this.canvas2D);

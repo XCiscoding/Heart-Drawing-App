@@ -16,6 +16,12 @@ export class HolographicHeart3D {
     this.currentScale = 1.0;
     this.targetScale = 1.0;
     
+    // 旋转控制
+    this.currentRotationX = 0;
+    this.currentRotationY = 0;
+    this.targetRotationX = 0;
+    this.targetRotationY = 0;
+    
     // 浅红色主题色
     this.heartColor = 0xff7878;
     this.heartColorRGB = { r: 255, g: 120, b: 120 };
@@ -280,15 +286,23 @@ export class HolographicHeart3D {
   setScale(scale) {
     this.targetScale = Math.max(0.5, Math.min(3.0, scale));
   }
+  
+  setRotation(rotX, rotY) {
+    this.targetRotationX = rotX;
+    this.targetRotationY = rotY;
+  }
 
   update() {
     // 平滑缩放
     this.currentScale += (this.targetScale - this.currentScale) * 0.1;
     this.heartGroup.scale.set(this.currentScale, this.currentScale, this.currentScale);
     
-    // 旋转动画
-    this.heartGroup.rotation.y += 0.008;
-    this.heartGroup.rotation.x += 0.003;
+    // 平滑旋转（使用目标旋转值）
+    this.currentRotationX += (this.targetRotationX - this.currentRotationX) * 0.1;
+    this.currentRotationY += (this.targetRotationY - this.currentRotationY) * 0.1;
+    
+    this.heartGroup.rotation.x = this.currentRotationX;
+    this.heartGroup.rotation.y = this.currentRotationY;
     
     // 粒子动画
     if (this.particles) {
