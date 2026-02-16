@@ -477,7 +477,7 @@ export class HolographicHeart3D {
     
     this.particles = new THREE.Points(particleGeometry, particleMaterial);
     this.particles.userData = { velocities };  // 存储速度数据
-    this.scene.add(this.particles);
+    this.heartGroup.add(this.particles);  // 添加到heartGroup，跟随中心点变换
   }
 
   /**
@@ -553,15 +553,8 @@ export class HolographicHeart3D {
     // 更新高缩放级别过渡效果（Task 4）
     this.updateZoomTransition();
 
-    // 粒子跟随爱心缩放和旋转
+    // 粒子动画更新（粒子已经在heartGroup中，自动跟随缩放和旋转）
     if (this.particles) {
-      // 粒子组跟随爱心缩放
-      this.particles.scale.set(this.currentScale, this.currentScale, this.currentScale);
-
-      // 粒子组跟随爱心旋转（同步旋转）
-      this.particles.rotation.x = this.currentRotationX;
-      this.particles.rotation.y = this.currentRotationY;
-
       // 粒子自转动画（额外的缓慢旋转）
       this.particles.rotation.y += 0.002;
 

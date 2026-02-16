@@ -202,7 +202,7 @@ class HolographicHeartApp {
         const smoothedPoint = this.applySmoothing(indexFingerTip);
 
         // 最小距离阈值，避免点过于密集
-        const minDistance = 0.005;
+        const minDistance = 0.008;
 
         if (!this.lastPoint) {
           // 第一个点直接添加到轨迹
@@ -221,7 +221,7 @@ class HolographicHeartApp {
 
           // 检查手指是否静止（超过2秒几乎没动且已有轨迹）
           const timeSinceLastMove = currentTime - this.lastMoveTime;
-          if (timeSinceLastMove > 500 && this.trail.length > 7) {
+          if (timeSinceLastMove > 600 && this.trail.length > 7) {
             this.resetTrail();
             return;
           }
