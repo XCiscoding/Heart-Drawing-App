@@ -44,6 +44,11 @@
   - 持续旋转动画
   - 周围粒子系统
   - 双指手势缩放
+  - **高缩放级别粒子过渡效果**（Task 4）:
+    - 缩放超过3.0x时，线框和填充逐渐淡出
+    - 粒子亮度和大小时增强
+    - 显示爱心轮廓粒子系统形成清晰形状
+    - 平滑的lerp过渡动画
 
 ### 6. 手势控制模块
 - **功能**: 双指捏合缩放3D爱心
@@ -136,7 +141,7 @@ const wireframeMaterial = new THREE.LineBasicMaterial({
 });
 ```
 
-### 双指缩放算法
+### 双指缩放算法（含非线性加速）
 ```javascript
 // 计算拇指和食指距离
 const distance = Math.sqrt(
@@ -144,9 +149,23 @@ const distance = Math.sqrt(
   Math.pow(thumb.y - index.y, 2)
 );
 
-// 映射到缩放比例
-const scale = distance / baseDistance;
-const clampedScale = Math.max(0.5, Math.min(3.0, scale));
+// 计算捏合持续时间
+const pinchDuration = now - this.pinchStartTime;
+
+// 使用ease-out加速曲线计算当前缩放速度
+// speed = baseSpeed + (maxSpeed - baseSpeed) * (1 - e^(-time/constant))
+const timeFactor = pinchDuration / ZOOM_ACCEL_CONSTANT;
+const easeOutFactor = 1 - Math.exp(-timeFactor);
+const currentZoomSpeed = ZOOM_BASE_SPEED + 
+  (ZOOM_MAX_SPEED - ZOOM_BASE_SPEED) * easeOutFactor;
+
+// 应用速度因子到缩放比例
+const speedMultiplier = 1 + (currentZoomSpeed - ZOOM_BASE_SPEED) * 0.3;
+const adjustedScaleRatio = 1 + (scaleRatio - 1) * speedMultiplier;
+
+// 映射到缩放比例并限制范围
+const newTargetScale = currentScale * adjustedScaleRatio;
+const clampedScale = Math.max(0.25, Math.min(4.0, newTargetScale));
 ```
 
 ## 项目结构
@@ -198,13 +217,26 @@ const clampedScale = Math.max(0.5, Math.min(3.0, scale));
 - 粒子系统（300个漂浮粒子）
 - 持续旋转动画
 - 平滑缩放过渡
+- **高缩放级别粒子过渡效果**（Task 4）:
+  - `ZOOM_THRESHOLD = 3.0` 缩放阈值检测
+  - `heartMeshes` 数组存储线框/填充/点阵引用
+  - `heartOutlineParticles` 爱心轮廓粒子系统（500粒子）
+  - `updateZoomTransition()` 平滑过渡更新
+  - 线框透明度：1.0 → 0.0（3.0x-4.0x）
+  - 粒子强度：1.0 → 2.0（3.0x-4.0x）
+  - lerp插值系数0.05确保平滑过渡
 
 ### GestureController (gestureController.js)
 - 检测拇指(4)和食指(8)位置
 - 计算两指尖欧几里得距离
 - 距离映射到缩放比例
 - 平滑过渡算法
-- 缩放范围限制 0.5x - 3.0x
+- 缩放范围限制 0.25x - 4.0x
+- **非线性缩放速度算法**：
+  - 速度累积机制
+  - Ease-out加速曲线：`speed = baseSpeed + (maxSpeed - baseSpeed) * (1 - e^(-time/constant))`
+  - 手势持续时间跟踪
+  - 从慢到快的自然加速效果
 
 ### TechEffects (techEffects.js)
 - 透视网格绘制（消失点效果）
@@ -238,6 +270,16 @@ const clampedScale = Math.max(0.5, Math.min(3.0, scale));
 - [x] 实现科技视觉效果
 - [x] 整合所有模块
 - [x] UI优化与测试
+- [x] Task 4: 高缩放级别粒子过渡效果
+  - [x] 3.0x阈值检测
+  - [x] 线框/填充淡入淡出
+  - [x] 粒子密度和亮度动态调整
+  - [x] 爱心轮廓粒子系统
+  - [x] 平滑lerp过渡
+- [x] Task 5: 集成测试和优化
+  - [x] 完整用户流程测试
+  - [x] 缩放范围一致性修复
+  - [x] 构建验证
 
 ## 运行方式
 
@@ -342,6 +384,9 @@ npm run build
 | 2026-02-14 | v1.1 | 完成所有功能模块开发和UI优化 |
 | 2026-02-14 | v1.2 | 修复镜像问题，提高识别灵敏度，本地模型加载 |
 | 2026-02-14 | v2.0 | 新增3D全息爱心、双指缩放、科技视觉效果 |
+| 2026-02-16 | v2.1 | 实现非线性缩放速度算法，添加ease-out加速曲线 |
+| 2026-02-16 | v2.2 | Task 4: 实现高缩放级别粒子过渡效果（3.0x-4.0x） |
+| 2026-02-16 | v2.3 | Task 5: 集成测试和优化，修复缩放范围一致性 |
 
 ---
 

@@ -64,6 +64,16 @@ export class HolographicHeart3D {
     this.currentScale = 1.0;
     this.targetScale = 1.0;
     
+    // 高缩放级别过渡效果控制（Task 4）
+    this.ZOOM_THRESHOLD = 3.0;              // 缩放阈值
+    this.ZOOM_MAX = 4.0;                    // 最大缩放
+    this.heartOpacity = 1.0;                // 爱心当前透明度（线框+填充）
+    this.targetHeartOpacity = 1.0;          // 目标透明度
+    this.particleIntensity = 1.0;           // 粒子当前强度
+    this.targetParticleIntensity = 1.0;     // 目标粒子强度
+    this.heartMeshes = [];                  // 存储爱心网格引用（线框+填充）
+    this.heartOutlineParticles = null;      // 爱心轮廓粒子系统
+    
     // 旋转控制（当前值和目标值，用于平滑过渡）
     this.currentRotationX = 0;
     this.currentRotationY = 0;
@@ -97,6 +107,9 @@ export class HolographicHeart3D {
     
     // 创建环境粒子系统
     this.createParticleSystem();
+    
+    // 创建爱心轮廓粒子系统（用于高缩放级别）
+    this.createHeartOutlineParticleSystem();
     
     // 添加环境光（灰色，强度2）
     const ambientLight = new THREE.AmbientLight(0x404040, 2);
@@ -153,8 +166,9 @@ export class HolographicHeart3D {
     });
     
     // 创建线框对象并添加到爱心组
-    const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
-    this.heartGroup.add(wireframe);
+    this.wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+    this.heartGroup.add(this.wireframe);
+    this.heartMeshes.push(this.wireframe);
 
     // 创建填充形状
     this.createFillFromPoints(points);
@@ -207,8 +221,9 @@ export class HolographicHeart3D {
     });
     
     // 创建填充网格并添加到爱心组
-    const fillMesh = new THREE.Mesh(fillGeometry, fillMaterial);
-    this.heartGroup.add(fillMesh);
+    this.fillMesh = new THREE.Mesh(fillGeometry, fillMaterial);
+    this.heartGroup.add(this.fillMesh);
+    this.heartMeshes.push(this.fillMesh);
   }
 
   /**
@@ -268,8 +283,9 @@ export class HolographicHeart3D {
       linewidth: 2
     });
     
-    const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
-    this.heartGroup.add(wireframe);
+    this.wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+    this.heartGroup.add(this.wireframe);
+    this.heartMeshes.push(this.wireframe);
     
     // 创建半透明填充
     const fillMaterial = new THREE.MeshBasicMaterial({
@@ -292,8 +308,9 @@ export class HolographicHeart3D {
     }
     
     const fillGeometry = new THREE.ShapeGeometry(fillShape);
-    const fillMesh = new THREE.Mesh(fillGeometry, fillMaterial);
-    this.heartGroup.add(fillMesh);
+    this.fillMesh = new THREE.Mesh(fillGeometry, fillMaterial);
+    this.heartGroup.add(this.fillMesh);
+    this.heartMeshes.push(this.fillMesh);
     
     // 添加点阵效果
     this.createDotMatrix(points);
@@ -337,8 +354,83 @@ export class HolographicHeart3D {
     });
     
     // 创建点阵对象
-    const dotMatrix = new THREE.Points(dotGeometry, dotMaterial);
-    this.heartGroup.add(dotMatrix);
+    this.dotMatrix = new THREE.Points(dotGeometry, dotMaterial);
+    this.heartGroup.add(this.dotMatrix);
+    this.heartMeshes.push(this.dotMatrix);
+  }
+
+  /**
+   * 创建爱心轮廓粒子系统（用于高缩放级别显示）
+   *
+   * 基于用户实际绘制的轨迹生成轮廓粒子，当缩放超过3.0x时显示
+   * 形成与用户画出形状一致的轮廓效果
+   */
+  createHeartOutlineParticleSystem() {
+    // 使用用户轨迹点或默认爱心形状
+    let outlinePoints = [];
+
+    if (this.trailPoints && this.trailPoints.length >= 10) {
+      // 使用用户实际画出的轨迹
+      // 将归一化坐标转换为3D坐标（与createHeartFromTrail一致）
+      outlinePoints = this.trailPoints.map(p => ({
+        x: (0.5 - p.x) * 80,
+        y: (0.5 - p.y) * 80
+      }));
+    } else {
+      // 使用默认爱心参数方程
+      const steps = 100;
+      for (let i = 0; i < steps; i++) {
+        const t = (i / steps) * Math.PI * 2;
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+        outlinePoints.push({ x, y });
+      }
+    }
+
+    const particleCount = Math.max(200, outlinePoints.length * 3);  // 根据轨迹长度调整粒子数
+    const particleGeometry = new THREE.BufferGeometry();
+    const positions = [];
+    const randomOffsets = [];  // 随机偏移用于动画
+
+    // 在轮廓上均匀分布粒子
+    for (let i = 0; i < particleCount; i++) {
+      // 在轮廓点之间插值
+      const t = (i / particleCount) * (outlinePoints.length - 1);
+      const index = Math.floor(t);
+      const fraction = t - index;
+
+      const p1 = outlinePoints[index];
+      const p2 = outlinePoints[Math.min(index + 1, outlinePoints.length - 1)];
+
+      // 线性插值
+      const x = p1.x + (p2.x - p1.x) * fraction;
+      const y = p1.y + (p2.y - p1.y) * fraction;
+
+      // 添加随机偏移使粒子有深度感和体积感
+      const randomOffset = (Math.random() - 0.5) * 2;
+      const z = randomOffset * 2;
+
+      positions.push(x, y, z);
+      randomOffsets.push(Math.random(), Math.random(), Math.random());
+    }
+
+    particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+
+    const particleMaterial = new THREE.PointsMaterial({
+      color: this.heartColor,
+      size: 1.2,  // 更大的粒子
+      transparent: true,
+      opacity: 0,  // 初始不可见
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true
+    });
+
+    this.heartOutlineParticles = new THREE.Points(particleGeometry, particleMaterial);
+    this.heartOutlineParticles.userData = {
+      randomOffsets,
+      basePositions: [...positions]
+    };
+    this.heartGroup.add(this.heartOutlineParticles);
   }
 
   /**
@@ -391,10 +483,39 @@ export class HolographicHeart3D {
   /**
    * 设置目标缩放值
    * 
-   * @param {number} scale - 缩放值（范围0.5-3.0）
+   * @param {number} scale - 缩放值（范围0.25-4.0）
    */
   setScale(scale) {
-    this.targetScale = Math.max(0.4, Math.min(3.3, scale));
+    this.targetScale = Math.max(0.25, Math.min(4.0, scale));
+    
+    // 根据缩放级别计算透明度目标值（Task 4）
+    this.updateTransitionTargets();
+  }
+  
+  /**
+   * 更新过渡效果的目标值
+   * 
+   * 根据当前缩放级别计算：
+   * - 爱心线框和填充的透明度
+   * - 粒子系统的强度
+   */
+  updateTransitionTargets() {
+    const scale = this.targetScale;
+    
+    if (scale <= this.ZOOM_THRESHOLD) {
+      // 缩放 <= 3.0x：爱心完全可见，粒子正常
+      this.targetHeartOpacity = 1.0;
+      this.targetParticleIntensity = 1.0;
+    } else if (scale >= this.ZOOM_MAX) {
+      // 缩放 >= 4.0x：爱心几乎不可见，粒子最亮
+      this.targetHeartOpacity = 0.0;
+      this.targetParticleIntensity = 2.0;
+    } else {
+      // 3.0x < 缩放 < 4.0x：平滑过渡
+      const t = (scale - this.ZOOM_THRESHOLD) / (this.ZOOM_MAX - this.ZOOM_THRESHOLD);
+      this.targetHeartOpacity = 1.0 - t;  // 1.0 -> 0.0
+      this.targetParticleIntensity = 1.0 + t;  // 1.0 -> 2.0
+    }
   }
   
   /**
@@ -415,6 +536,7 @@ export class HolographicHeart3D {
    * - 平滑缩放过渡
    * - 平滑旋转过渡
    * - 粒子动画更新
+   * - 高缩放级别过渡效果（Task 4）
    */
   update() {
     // 平滑缩放（线性插值，系数0.05）
@@ -427,6 +549,9 @@ export class HolographicHeart3D {
 
     this.heartGroup.rotation.x = this.currentRotationX;
     this.heartGroup.rotation.y = this.currentRotationY;
+
+    // 更新高缩放级别过渡效果（Task 4）
+    this.updateZoomTransition();
 
     // 粒子跟随爱心缩放和旋转
     if (this.particles) {
@@ -458,6 +583,77 @@ export class HolographicHeart3D {
       // 标记位置属性需要更新
       this.particles.geometry.attributes.position.needsUpdate = true;
     }
+  }
+
+  /**
+   * 更新高缩放级别过渡效果
+   * 
+   * 当缩放超过3.0x时：
+   * - 逐渐淡出爱心线框和填充
+   * - 逐渐增强粒子亮度和大小
+   * - 显示爱心轮廓粒子系统
+   */
+  updateZoomTransition() {
+    // 平滑过渡透明度（lerp系数0.05）
+    this.heartOpacity += (this.targetHeartOpacity - this.heartOpacity) * 0.05;
+    this.particleIntensity += (this.targetParticleIntensity - this.particleIntensity) * 0.05;
+
+    // 更新爱心网格透明度（线框、填充、点阵）
+    this.heartMeshes.forEach(mesh => {
+      if (mesh.material) {
+        // 基础透明度 * 当前过渡透明度
+        const baseOpacity = mesh === this.fillMesh ? 0.15 : (mesh === this.wireframe ? 0.8 : 0.9);
+        mesh.material.opacity = baseOpacity * this.heartOpacity;
+      }
+    });
+
+    // 更新环境粒子系统
+    if (this.particles && this.particles.material) {
+      // 基础透明度0.6，随强度增加
+      this.particles.material.opacity = Math.min(0.6 * this.particleIntensity, 1.0);
+      // 粒子大小随强度增加
+      this.particles.material.size = 0.5 * this.particleIntensity;
+    }
+
+    // 更新爱心轮廓粒子系统
+    if (this.heartOutlineParticles && this.heartOutlineParticles.material) {
+      // 计算轮廓粒子的显示透明度（与爱心透明度相反）
+      const outlineOpacity = (1.0 - this.heartOpacity) * 0.9;
+      this.heartOutlineParticles.material.opacity = outlineOpacity;
+      // 粒子大小随强度增加
+      this.heartOutlineParticles.material.size = 1.2 * this.particleIntensity;
+      
+      // 更新轮廓粒子动画
+      this.updateHeartOutlineParticles();
+    }
+  }
+
+  /**
+   * 更新爱心轮廓粒子动画
+   * 
+   * 为轮廓粒子添加轻微的脉动和浮动效果
+   */
+  updateHeartOutlineParticles() {
+    if (!this.heartOutlineParticles) return;
+    
+    const positions = this.heartOutlineParticles.geometry.attributes.position.array;
+    const basePositions = this.heartOutlineParticles.userData.basePositions;
+    const randomOffsets = this.heartOutlineParticles.userData.randomOffsets;
+    const time = Date.now() * 0.001;
+    
+    for (let i = 0; i < positions.length; i += 3) {
+      const idx = i / 3;
+      const offset = randomOffsets[idx];
+      
+      // 添加轻微的脉动效果
+      const pulse = Math.sin(time * 2 + offset * Math.PI * 2) * 0.5;
+      const intensity = this.particleIntensity;
+      
+      // Z轴浮动
+      positions[i + 2] = basePositions[i + 2] + pulse * intensity;
+    }
+    
+    this.heartOutlineParticles.geometry.attributes.position.needsUpdate = true;
   }
 
   /**

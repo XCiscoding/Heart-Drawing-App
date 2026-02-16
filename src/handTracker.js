@@ -189,31 +189,65 @@ export class HandTracker {
     if (!this.isInitialized) {
       throw new Error('Hand tracker not initialized');
     }
-    
+
     console.log('启动摄像头...');
-    
+
     try {
-      // 请求摄像头权限
+      // 首先尝试停止任何现有的视频流
+      if (this.videoElement.srcObject) {
+        const tracks = this.videoElement.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+        this.videoElement.srcObject = null;
+      }
+
+      // 请求摄像头权限，使用更宽松的约束
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          width: 640,           // 视频宽度
-          height: 480,          // 视频高度
-          frameRate: { ideal: 30, max: 60 }  // 帧率
-        }
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30 }
+        },
+        audio: false
       });
-      
+
       // 将视频流绑定到视频元素
       this.videoElement.srcObject = stream;
+
+      // 等待视频准备就绪
+      await new Promise((resolve, reject) => {
+        this.videoElement.onloadedmetadata = () => {
+          resolve();
+        };
+        this.videoElement.onerror = (e) => {
+          reject(new Error('视频加载失败'));
+        };
+        // 5秒超时
+        setTimeout(() => reject(new Error('视频加载超时')), 5000);
+      });
+
       await this.videoElement.play();
-      
+
       console.log('✓ 摄像头已启动');
-      
+
       // 开始处理视频帧
       this.processVideoFrame();
-      
+
     } catch (error) {
       console.error('✗ 摄像头启动失败:', error);
-      throw error;
+
+      // 提供更详细的错误信息
+      let errorMessage = '无法访问摄像头';
+      if (error.name === 'NotAllowedError') {
+        errorMessage = '摄像头权限被拒绝，请在浏览器设置中允许访问摄像头';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = '未找到摄像头设备';
+      } else if (error.name === 'NotReadableError' || error.name === 'AbortError') {
+        errorMessage = '摄像头被其他程序占用，请关闭其他使用摄像头的应用后重试';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = '摄像头不支持请求的分辨率';
+      }
+
+      throw new Error(errorMessage);
     }
   }
 

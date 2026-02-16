@@ -221,7 +221,7 @@ class HolographicHeartApp {
 
           // 检查手指是否静止（超过2秒几乎没动且已有轨迹）
           const timeSinceLastMove = currentTime - this.lastMoveTime;
-          if (timeSinceLastMove > 600 && this.trail.length > 7) {
+          if (timeSinceLastMove > 500 && this.trail.length > 7) {
             this.resetTrail();
             return;
           }
@@ -236,7 +236,7 @@ class HolographicHeartApp {
             this.lastPointTime = currentTime;
 
             // 限制轨迹最大长度，防止内存无限增长
-            if (this.trail.length > 200) {
+            if (this.trail.length > 250) {
               this.trail.shift();
             }
           }
